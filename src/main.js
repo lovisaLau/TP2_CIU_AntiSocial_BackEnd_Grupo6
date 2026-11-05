@@ -1,6 +1,7 @@
 require("dotenv").config();
 const path = require("path");
 const express = require("express");
+const cors = require("cors");
 const db = require("./models");
 const routerUsers = require("./routes/usersRoutes");
 const routerPosts = require("./routes/postsRoutes");
@@ -12,6 +13,7 @@ const { rutaNoEncontrada, manejarErrores } = require("./middlewares/manejoErrore
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(cors({ origin: ["http://localhost:5173", "http://localhost:4173"] }));
 app.use(express.json());
 
 // Carpeta publica para imagenes subidas (Bonus Multer)
