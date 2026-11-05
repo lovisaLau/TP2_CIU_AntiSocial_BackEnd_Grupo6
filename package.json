@@ -1,0 +1,32 @@
+{
+  "name": "anti-social",
+  "version": "1.0.0",
+  "description": "UnaHur anti-social net - Trabajo Práctico",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "dev": "nodemon src/main.js",
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:migrate:undo": "sequelize-cli db:migrate:undo:all",
+    "db:seed": "sequelize-cli db:seed:all",
+    "db:seed:undo": "sequelize-cli db:seed:undo:all",
+    "test": "newman run postman/antiSocialNet.postmanCollection.json"
+  },
+  "author": "Gerardo Gonzalez Tulian",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.0.0",
+    "express": "^5.2.1",
+    "joi": "^18.2.9",
+    "js-yaml": "^5.5.0",
+    "multer": "^2.4.0",
+    "sequelize": "^6.37.8",
+    "sqlite3": "^6.0.1",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "newman": "^6.2.3",
+    "nodemon": "^3.1.10",
+    "sequelize-cli": "^6.6.5"
+  }
+}

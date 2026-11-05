@@ -1,0 +1,1562 @@
+openapi: 3.0.3
+
+info:
+  title: UnaHur Anti-Social Net API
+  version: 1.0.0
+  description: |
+    API REST del backend de la red social **UnaHur Anti-Social Net**.
+    Permite gestionar usuarios, publicaciones, comentarios, etiquetas, imágenes de los posts
+    y relaciones de seguimiento entre usuarios (followers).
+
+    **Convenciones**
+
+    - Todos los cuerpos de request y de respuesta son JSON.
+    - Los parámetros de ruta que terminan en `id` / `Id` tienen que ser enteros positivos; si no, la API responde **400**.
+    - Los datos de entrada se validan con **Joi**; ante un error se responde **400** con la lista de `errores`.
+    - Si el body no es un JSON válido se responde **400** con el mensaje `El body no es un JSON válido`.
+    - Una ruta inexistente responde **404** con `No existe la ruta <MÉTODO> <url>`.
+    - Al consultar posts, los comentarios con más de `COMMENT_MAX_MONTHS` meses **no se muestran**.
+      Esto se calcula con el atributo virtual `visible` del modelo Comment.
+
+    **Variables de entorno relevantes**
+
+    | Variable | Descripción | Por defecto |
+    | --- | --- | --- |
+    | PORT | Puerto del servidor | 3000 |
+    | COMMENT_MAX_MONTHS | Meses a partir de los cuales un comentario no se muestra | 6 |
+    | DB_DIALECT | Motor de base de datos: sqlite, mysql, mariadb, postgres o mssql | sqlite |
+    | UPLOAD_MAX_MB | Tamaño máximo (en MB) de las imágenes que se suben al servidor | 5 |
+
+    **Bonus: imágenes subidas**
+
+    Las imágenes que se suben con `POST /posts/{id}/images/upload` se guardan en la carpeta `uploads/`
+    del servidor y se pueden ver en `http://localhost:3000/uploads/<nombre-del-archivo>`.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+# El MVP no tiene autenticación
+security: []
+
+servers:
+  - url: /
+    description: Este mismo servidor (toma el puerto definido en PORT)
+
+tags:
+  - name: Users
+    description: Usuarios registrados
+  - name: Followers
+    description: "Bonus: seguir / dejar de seguir usuarios"
+  - name: Posts
+    description: Publicaciones
+  - name: Post Images
+    description: Imágenes de una publicación (por URL o subiendo el archivo al servidor)
+  - name: Tags
+    description: Etiquetas y su asignación a publicaciones
+  - name: Comments
+    description: Comentarios sobre publicaciones
+
+paths:
+  # ───────────────────────────── USERS ─────────────────────────────
+  /users:
+    get:
+      tags: [Users]
+      summary: Listar todos los usuarios
+      operationId: obtenerUsuarios
+      responses:
+        "200":
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    post:
+      tags: [Users]
+      summary: Crear un usuario
+      operationId: crearUsuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+            example:
+              nickName: pepe
+      responses:
+        "201":
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserMensaje"
+              example:
+                message: Usuario creado con exito
+                usuario:
+                  id: 5
+                  nickName: pepe
+                  createdAt: "2026-10-16T05:19:44.118Z"
+                  updatedAt: "2026-10-16T05:19:44.118Z"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "409":
+          description: El nickName ya está en uso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                message: El nickName ya está en uso
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    get:
+      tags: [Users]
+      summary: Obtener un usuario con sus posts
+      operationId: obtenerUsuario
+      responses:
+        "200":
+          description: Usuario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserConPosts"
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/UsuarioNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    put:
+      tags: [Users]
+      summary: Modificar el nickName de un usuario
+      operationId: actualizarUsuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+            example:
+              nickName: pepe2
+      responses:
+        "200":
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserMensaje"
+              example:
+                message: Usuario actualizado con exito
+                usuario:
+                  id: 5
+                  nickName: pepe2
+                  createdAt: "2026-10-16T05:19:44.118Z"
+                  updatedAt: "2026-10-16T05:19:44.168Z"
+        "400":
+          description: id inválido o datos del body inválidos
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+              examples:
+                idInvalido:
+                  summary: id no numérico
+                  value:
+                    message: El parámetro id debe ser un entero positivo.
+                bodyInvalido:
+                  summary: nickName muy corto
+                  value:
+                    message: Datos inválidos
+                    errores:
+                      - El nickName debe tener al menos 3 caracteres
+        "404":
+          $ref: "#/components/responses/UsuarioNoEncontrado"
+        "409":
+          description: El nickName ya lo usa otro usuario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                message: El nickName ya está en uso
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    delete:
+      tags: [Users]
+      summary: Eliminar un usuario
+      description: Borra también sus posts, comentarios y relaciones de seguimiento (CASCADE).
+      operationId: eliminarUsuario
+      responses:
+        "200":
+          description: Usuario eliminado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: Usuario eliminado con exito
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/UsuarioNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  # ─────────────────────────── FOLLOWERS (bonus) ───────────────────────────
+  /users/{id}/followers:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    get:
+      tags: [Followers]
+      summary: Listar los seguidores de un usuario
+      description: Devuelve los usuarios que **siguen** al usuario `id`.
+      operationId: obtenerSeguidores
+      responses:
+        "200":
+          description: Lista de seguidores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserResumen"
+              example:
+                - id: 2
+                  nickName: laura
+                - id: 3
+                  nickName: mili
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/UsuarioNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /users/{id}/following:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    get:
+      tags: [Followers]
+      summary: Listar los usuarios que sigue un usuario
+      description: Devuelve los usuarios a los que el usuario `id` **sigue**.
+      operationId: obtenerSeguidos
+      responses:
+        "200":
+          description: Lista de seguidos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserResumen"
+              example:
+                - id: 2
+                  nickName: laura
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/UsuarioNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /users/{id}/following/{seguidoId}:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+      - name: seguidoId
+        in: path
+        required: true
+        description: id del usuario a seguir / dejar de seguir
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+    post:
+      tags: [Followers]
+      summary: Seguir a un usuario
+      description: El usuario `id` pasa a seguir al usuario `seguidoId`.
+      operationId: seguirUsuario
+      responses:
+        "201":
+          description: Ahora lo sigue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: silvina ahora sigue a carla
+        "400":
+          description: Algún id es inválido o el usuario intenta seguirse a sí mismo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                idInvalido:
+                  summary: seguidoId no numérico
+                  value:
+                    message: El parámetro seguidoId debe ser un entero positivo.
+                autoSeguimiento:
+                  summary: id y seguidoId iguales
+                  value:
+                    message: Un usuario no puede seguirse a sí mismo
+        "404":
+          description: No existe el usuario `id` o el usuario a seguir
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                usuario:
+                  summary: No existe el usuario id
+                  value:
+                    message: Usuario no encontrado
+                seguido:
+                  summary: No existe el usuario seguidoId
+                  value:
+                    message: El usuario a seguir no existe
+        "409":
+          description: Ya lo seguía
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                message: El usuario ya sigue a ese usuario
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    delete:
+      tags: [Followers]
+      summary: Dejar de seguir a un usuario
+      operationId: dejarDeSeguir
+      responses:
+        "200":
+          description: Lo dejó de seguir
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: silvina dejó de seguir a carla
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          description: No existe alguno de los usuarios, o no lo seguía
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                usuario:
+                  summary: No existe el usuario id
+                  value:
+                    message: Usuario no encontrado
+                seguido:
+                  summary: No existe el usuario seguidoId
+                  value:
+                    message: El usuario a dejar de seguir no existe
+                noLoSigue:
+                  summary: No lo seguía
+                  value:
+                    message: El usuario no sigue a ese usuario
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  # ───────────────────────────── POSTS ─────────────────────────────
+  /posts:
+    get:
+      tags: [Posts]
+      summary: Listar todas las publicaciones
+      description: |
+        Cada post incluye su autor, imágenes, tags y comentarios.
+        Solo se devuelven los comentarios **visibles** (más nuevos que `COMMENT_MAX_MONTHS` meses).
+      operationId: getPosts
+      responses:
+        "200":
+          description: Lista de posts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PostCompleto"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    post:
+      tags: [Posts]
+      summary: Crear una publicación
+      description: |
+        La descripción es obligatoria. Opcionalmente se pueden mandar URLs de imágenes
+        y ids de tags existentes para asociarlos en el mismo paso.
+
+        Si algún tag no existe se responde **404** y **no se crea nada**: el post, sus imágenes
+        y sus tags se guardan juntos dentro de una **transacción**.
+      operationId: createPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostInput"
+            examples:
+              soloDescripcion:
+                summary: Solo descripción (mínimo)
+                value:
+                  description: Mi primer post
+                  userId: 1
+              completo:
+                summary: Con imágenes y tags
+                value:
+                  description: Post con fotos
+                  userId: 1
+                  images:
+                    - https://picsum.photos/id/40/600/400
+                  tags: [1, 2]
+      responses:
+        "201":
+          description: Post creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "404":
+          description: No existe el usuario o alguno de los tags enviados
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/ErrorStatus"
+                  - $ref: "#/components/schemas/Error"
+              examples:
+                usuario:
+                  summary: userId inexistente
+                  value:
+                    status: error
+                    message: El usuario especificado no existe
+                tag:
+                  summary: Algún id de tags no existe (no se crea el post)
+                  value:
+                    status: error
+                    message: Una o más etiquetas no existen
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /posts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    get:
+      tags: [Posts]
+      summary: Obtener una publicación
+      description: Incluye autor, imágenes, tags y solo los comentarios **visibles**.
+      operationId: getPostById
+      responses:
+        "200":
+          description: Post encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostCompleto"
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/PostNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    put:
+      tags: [Posts]
+      summary: Modificar la descripción de una publicación
+      description: Solo se puede cambiar la descripción. Las imágenes y los tags tienen sus propios endpoints.
+      operationId: updatePost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostUpdateInput"
+            example:
+              description: Descripción modificada
+      responses:
+        "200":
+          description: Post modificado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "400":
+          description: id inválido o descripción inválida
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+              examples:
+                idInvalido:
+                  value:
+                    message: El parámetro id debe ser un entero positivo.
+                bodyInvalido:
+                  value:
+                    message: Datos inválidos
+                    errores:
+                      - La descripción no puede estar vacía
+        "404":
+          $ref: "#/components/responses/PostNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    delete:
+      tags: [Posts]
+      summary: Eliminar una publicación
+      description: Borra también sus imágenes, sus comentarios y sus asociaciones con tags (CASCADE).
+      operationId: deletePost
+      responses:
+        "200":
+          description: Post eliminado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: Publicación eliminada correctamente
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/PostNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  # ─────────────────────────── POST IMAGES ───────────────────────────
+  /posts/{id}/images:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    post:
+      tags: [Post Images]
+      summary: Agregar una imagen a una publicación
+      operationId: addImageToPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImageInput"
+            example:
+              url: https://picsum.photos/id/50/600/400
+      responses:
+        "201":
+          description: Imagen agregada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostImage"
+        "400":
+          description: id inválido o URL inválida
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+              examples:
+                idInvalido:
+                  value:
+                    message: El parámetro id debe ser un entero positivo.
+                urlInvalida:
+                  value:
+                    message: Datos inválidos
+                    errores:
+                      - La URL debe ser un enlace válido
+        "404":
+          $ref: "#/components/responses/PostNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /posts/{id}/images/upload:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    post:
+      tags: [Post Images]
+      summary: "Bonus: subir una imagen al servidor"
+      description: |
+        Recibe el archivo en formato `multipart/form-data`, en el campo **`imagen`**, y lo guarda en la
+        carpeta `uploads/` del servidor (con Multer). En `Post_Images` se guarda la URL pública del archivo.
+
+        Se aceptan imágenes jpg, png, gif o webp, de hasta `UPLOAD_MAX_MB` MB (por defecto 5).
+      operationId: subirImagen
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [imagen]
+              properties:
+                imagen:
+                  type: string
+                  format: binary
+                  description: Archivo de imagen (jpg, png, gif o webp)
+      responses:
+        "201":
+          description: Imagen subida y asociada al post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostImage"
+              example:
+                id: 6
+                url: http://localhost:3000/uploads/post-1-1792199820974-607819.png
+                postId: 1
+                createdAt: "2026-10-17T01:17:00.984Z"
+                updatedAt: "2026-10-17T01:17:00.984Z"
+        "400":
+          description: id inválido, falta el archivo, el archivo no es una imagen o se mandó en otro campo
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ErrorStatus"
+              examples:
+                sinArchivo:
+                  summary: No se envió ningún archivo
+                  value:
+                    status: error
+                    message: Hay que enviar una imagen en el campo "imagen" (multipart/form-data)
+                tipoInvalido:
+                  summary: El archivo no es una imagen
+                  value:
+                    message: Solo se permiten imágenes (jpg, png, gif o webp)
+                campoIncorrecto:
+                  summary: El archivo vino en un campo con otro nombre
+                  value:
+                    message: La imagen tiene que enviarse en el campo "imagen"
+                idInvalido:
+                  value:
+                    message: El parámetro id debe ser un entero positivo.
+        "404":
+          $ref: "#/components/responses/PostNoEncontrado"
+        "413":
+          description: La imagen supera el tamaño máximo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                message: La imagen supera el tamaño máximo permitido (5 MB)
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /posts/{id}/images/{imageId}:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+      - name: imageId
+        in: path
+        required: true
+        description: id de la imagen (tiene que pertenecer al post)
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+    delete:
+      tags: [Post Images]
+      summary: Quitar una imagen de una publicación
+      operationId: removeImageFromPost
+      responses:
+        "200":
+          description: Imagen eliminada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: Imagen eliminada correctamente
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          description: La imagen no existe o no pertenece a ese post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorStatus"
+              example:
+                status: error
+                message: Imagen no encontrada en este post
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  # ───────────────────────────── TAGS ─────────────────────────────
+  /tags:
+    get:
+      tags: [Tags]
+      summary: Listar todas las etiquetas
+      operationId: getTags
+      responses:
+        "200":
+          description: Lista de tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tag"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    post:
+      tags: [Tags]
+      summary: Crear una etiqueta
+      description: El nombre se guarda en minúsculas y no se puede repetir.
+      operationId: createTag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagInput"
+            example:
+              name: express
+      responses:
+        "201":
+          description: Tag creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "409":
+          description: La etiqueta ya existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorStatus"
+              example:
+                status: error
+                message: La etiqueta ya existe
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /tags/{id}:
+    parameters:
+      - $ref: "#/components/parameters/TagId"
+    get:
+      tags: [Tags]
+      summary: Obtener una etiqueta con los posts que la usan
+      operationId: getTagById
+      responses:
+        "200":
+          description: Etiqueta encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagConPosts"
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/TagNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    put:
+      tags: [Tags]
+      summary: Cambiar el nombre de una etiqueta
+      description: El nombre se guarda en minúsculas y no puede repetirse con el de otra etiqueta.
+      operationId: updateTag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagInput"
+            example:
+              name: nodejs
+      responses:
+        "200":
+          description: Etiqueta modificada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tag"
+        "400":
+          description: id inválido o nombre inválido
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+              examples:
+                idInvalido:
+                  value:
+                    message: El parámetro id debe ser un entero positivo.
+                bodyInvalido:
+                  value:
+                    message: Datos inválidos
+                    errores:
+                      - El nombre del tag es obligatorio
+        "404":
+          $ref: "#/components/responses/TagNoEncontrado"
+        "409":
+          description: Ya existe otra etiqueta con ese nombre
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorStatus"
+              example:
+                status: error
+                message: Ya existe otra etiqueta con ese nombre
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    delete:
+      tags: [Tags]
+      summary: Eliminar una etiqueta
+      description: Se quita de todos los posts que la tenían (CASCADE en Post_Tags). Los posts no se borran.
+      operationId: deleteTag
+      responses:
+        "200":
+          description: Etiqueta eliminada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: Etiqueta eliminada correctamente
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/TagNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /posts/{id}/tags:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+    post:
+      tags: [Tags]
+      summary: Asociar una etiqueta existente a una publicación
+      description: Si el post ya tenía esa etiqueta no se duplica.
+      operationId: addTagToPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTagInput"
+            example:
+              tagId: 1
+      responses:
+        "200":
+          description: Etiqueta asociada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: Etiqueta asociada correctamente al post
+        "400":
+          description: id inválido o tagId inválido
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+              examples:
+                idInvalido:
+                  value:
+                    message: El parámetro id debe ser un entero positivo.
+                bodyInvalido:
+                  value:
+                    message: Datos inválidos
+                    errores:
+                      - El tagId es obligatorio
+        "404":
+          description: No existe el post o la etiqueta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorStatus"
+              examples:
+                post:
+                  value:
+                    status: error
+                    message: Publicación no encontrada
+                tag:
+                  value:
+                    status: error
+                    message: Etiqueta no encontrada
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /posts/{id}/tags/{tagId}:
+    parameters:
+      - $ref: "#/components/parameters/PostId"
+      - $ref: "#/components/parameters/TagIdRuta"
+    delete:
+      tags: [Tags]
+      summary: Quitar una etiqueta de una publicación
+      description: Borra la asociación en Post_Tags. El post y la etiqueta siguen existiendo.
+      operationId: removeTagFromPost
+      responses:
+        "200":
+          description: Etiqueta quitada del post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: Etiqueta quitada correctamente del post
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          description: No existe el post, no existe la etiqueta o el post no tiene esa etiqueta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorStatus"
+              examples:
+                post:
+                  value:
+                    status: error
+                    message: Publicación no encontrada
+                tag:
+                  value:
+                    status: error
+                    message: Etiqueta no encontrada
+                noAsociada:
+                  value:
+                    status: error
+                    message: La etiqueta no está asociada a esta publicación
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  # ─────────────────────────── COMMENTS ───────────────────────────
+  /comments:
+    get:
+      tags: [Comments]
+      summary: Listar todos los comentarios
+      description: |
+        Devuelve **todos** los comentarios con su autor, cada uno con el atributo virtual `visible`.
+        El filtro de comentarios visibles se aplica al consultar un post (`GET /posts` y `GET /posts/{id}`).
+      operationId: getComments
+      responses:
+        "200":
+          description: Lista de comentarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommentConUsuario"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    post:
+      tags: [Comments]
+      summary: Comentar una publicación
+      description: El post y el usuario tienen que existir.
+      operationId: createComment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+            example:
+              content: ¡Muy bueno!
+              userId: 1
+              postId: 2
+      responses:
+        "201":
+          description: Comentario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "404":
+          description: No existe el post o el usuario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorStatus"
+              examples:
+                post:
+                  value:
+                    status: error
+                    message: "No se puede comentar: la publicación no existe"
+                usuario:
+                  value:
+                    status: error
+                    message: El usuario especificado no existe
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /comments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/CommentId"
+    get:
+      tags: [Comments]
+      summary: Obtener un comentario
+      description: Incluye el autor y el post al que pertenece.
+      operationId: getCommentById
+      responses:
+        "200":
+          description: Comentario encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentDetalle"
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/ComentarioNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    put:
+      tags: [Comments]
+      summary: Modificar el texto de un comentario
+      description: Solo se puede cambiar el contenido; el autor y el post no cambian.
+      operationId: updateComment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentUpdateInput"
+            example:
+              content: Comentario editado
+      responses:
+        "200":
+          description: Comentario modificado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: id inválido o contenido inválido
+          content:
+            application/json:
+              schema:
+                anyOf:
+                  - $ref: "#/components/schemas/Error"
+                  - $ref: "#/components/schemas/ValidationError"
+              examples:
+                idInvalido:
+                  value:
+                    message: El parámetro id debe ser un entero positivo.
+                bodyInvalido:
+                  value:
+                    message: Datos inválidos
+                    errores:
+                      - El comentario no puede estar vacío
+        "404":
+          $ref: "#/components/responses/ComentarioNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+    delete:
+      tags: [Comments]
+      summary: Eliminar un comentario
+      operationId: deleteComment
+      responses:
+        "200":
+          description: Comentario eliminado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Mensaje"
+              example:
+                message: Comentario eliminado correctamente
+        "400":
+          $ref: "#/components/responses/IdInvalido"
+        "404":
+          $ref: "#/components/responses/ComentarioNoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+components:
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: id del usuario
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    PostId:
+      name: id
+      in: path
+      required: true
+      description: id de la publicación
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    TagId:
+      name: id
+      in: path
+      required: true
+      description: id de la etiqueta
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    TagIdRuta:
+      name: tagId
+      in: path
+      required: true
+      description: id de la etiqueta a quitar
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    CommentId:
+      name: id
+      in: path
+      required: true
+      description: id del comentario
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+
+  responses:
+    IdInvalido:
+      description: Algún parámetro id de la ruta no es un entero positivo
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: El parámetro id debe ser un entero positivo.
+    DatosInvalidos:
+      description: El body no cumple el schema de Joi (o no es un JSON válido)
+      content:
+        application/json:
+          schema:
+            anyOf:
+              - $ref: "#/components/schemas/ValidationError"
+              - $ref: "#/components/schemas/Error"
+          examples:
+            joi:
+              summary: Falla la validación de Joi
+              value:
+                message: Datos inválidos
+                errores:
+                  - El campo es obligatorio
+            jsonMalformado:
+              summary: Body que no es JSON
+              value:
+                message: El body no es un JSON válido
+    UsuarioNoEncontrado:
+      description: No existe un usuario con ese id
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: Usuario no encontrado
+    PostNoEncontrado:
+      description: No existe una publicación con ese id
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorStatus"
+          example:
+            status: error
+            message: Publicación no encontrada
+    TagNoEncontrado:
+      description: No existe una etiqueta con ese id
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorStatus"
+          example:
+            status: error
+            message: Etiqueta no encontrada
+    ComentarioNoEncontrado:
+      description: No existe un comentario con ese id
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorStatus"
+          example:
+            status: error
+            message: Comentario no encontrado
+    ErrorInterno:
+      description: Error inesperado del servidor
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: Error interno del servidor
+
+  schemas:
+    # ---------- Mensajes y errores ----------
+    Mensaje:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Usuario no encontrado
+      required: [message]
+    ErrorStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Publicación no encontrada
+      required: [status, message]
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Datos inválidos
+        errores:
+          type: array
+          items:
+            type: string
+          example:
+            - La descripción no puede estar vacía
+      required: [message, errores]
+
+    # ---------- User ----------
+    UserInput:
+      type: object
+      additionalProperties: false
+      required: [nickName]
+      properties:
+        nickName:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: "^[a-zA-Z0-9._-]+$"
+          description: Único. Solo letras, números, puntos, guiones y guiones bajos.
+          example: pepe
+    UserResumen:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nickName:
+          type: string
+          example: carla
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nickName:
+          type: string
+          example: carla
+        createdAt:
+          type: string
+          format: date-time
+    UserCompleto:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            updatedAt:
+              type: string
+              format: date-time
+    UserMensaje:
+      type: object
+      properties:
+        message:
+          type: string
+        usuario:
+          $ref: "#/components/schemas/UserCompleto"
+    UserConPosts:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            posts:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  description:
+                    type: string
+                    example: Primer post de la red anti-social
+                  createdAt:
+                    type: string
+                    format: date-time
+
+    # ---------- Post ----------
+    PostInput:
+      type: object
+      additionalProperties: false
+      required: [description, userId]
+      properties:
+        description:
+          type: string
+          minLength: 1
+          example: Mi primer post
+        userId:
+          type: integer
+          minimum: 1
+          example: 1
+        images:
+          type: array
+          description: URLs de imágenes (opcional)
+          items:
+            type: string
+            format: uri
+          example:
+            - https://picsum.photos/id/40/600/400
+        tags:
+          type: array
+          description: ids de tags existentes (opcional)
+          items:
+            type: integer
+            minimum: 1
+          example: [1, 2]
+    PostUpdateInput:
+      type: object
+      additionalProperties: false
+      required: [description]
+      properties:
+        description:
+          type: string
+          minLength: 1
+          example: Descripción modificada
+    Post:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 4
+        description:
+          type: string
+          example: Mi primer post
+        userId:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PostCompleto:
+      allOf:
+        - $ref: "#/components/schemas/Post"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/UserResumen"
+            images:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  url:
+                    type: string
+                    format: uri
+                    example: https://picsum.photos/id/10/600/400
+            tags:
+              type: array
+              items:
+                $ref: "#/components/schemas/TagResumen"
+            comments:
+              type: array
+              description: Solo los comentarios visibles
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/Comment"
+                  - type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/UserResumen"
+
+    # ---------- Post_Images ----------
+    ImageInput:
+      type: object
+      additionalProperties: false
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          example: https://picsum.photos/id/50/600/400
+    PostImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 5
+        url:
+          type: string
+          format: uri
+          example: https://picsum.photos/id/50/600/400
+        postId:
+          type: integer
+          example: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ---------- Tag ----------
+    TagInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          example: express
+    AddTagInput:
+      type: object
+      additionalProperties: false
+      required: [tagId]
+      properties:
+        tagId:
+          type: integer
+          minimum: 1
+          example: 1
+    TagResumen:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: unahur
+    TagConPosts:
+      allOf:
+        - $ref: "#/components/schemas/Tag"
+        - type: object
+          properties:
+            posts:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  description:
+                    type: string
+                    example: Primer post de la red anti-social
+    Tag:
+      allOf:
+        - $ref: "#/components/schemas/TagResumen"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    # ---------- Comment ----------
+    CommentInput:
+      type: object
+      additionalProperties: false
+      required: [content, userId, postId]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          example: ¡Muy bueno!
+        userId:
+          type: integer
+          minimum: 1
+          example: 1
+        postId:
+          type: integer
+          minimum: 1
+          example: 2
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 5
+        content:
+          type: string
+          example: ¡Muy bueno!
+        userId:
+          type: integer
+          example: 1
+        postId:
+          type: integer
+          example: 2
+        visible:
+          type: boolean
+          readOnly: true
+          description: |
+            Atributo **virtual** (no se guarda en la base). Es `true` si el comentario
+            tiene menos de `COMMENT_MAX_MONTHS` meses.
+          example: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CommentUpdateInput:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          example: Comentario editado
+    CommentConUsuario:
+      allOf:
+        - $ref: "#/components/schemas/Comment"
+        - type: object
+          properties:
+            user:
+              $ref: "#/components/schemas/UserResumen"
+    CommentDetalle:
+      allOf:
+        - $ref: "#/components/schemas/CommentConUsuario"
+        - type: object
+          properties:
+            post:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  example: 1
+                description:
+                  type: string
+                  example: Primer post de la red anti-social

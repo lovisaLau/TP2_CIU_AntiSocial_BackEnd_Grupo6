@@ -1,0 +1,1 @@
+Este archivo no es una imagen. Se usa para probar el error 400 de la subida.
