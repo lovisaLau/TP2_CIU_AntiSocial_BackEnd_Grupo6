@@ -86,6 +86,7 @@ paths:
               $ref: "#/components/schemas/UserInput"
             example:
               nickName: pepe
+              password: miclave123
       responses:
         "201":
           description: Usuario creado
@@ -110,6 +111,47 @@ paths:
                 $ref: "#/components/schemas/Error"
               example:
                 message: El nickName ya está en uso
+        "500":
+          $ref: "#/components/responses/ErrorInterno"
+
+  /users/login:
+    post:
+      tags: [Users]
+      summary: Iniciar sesión (BONUS contraseña propia)
+      description: Valida el nickName y la contraseña. La contraseña se guarda encriptada con bcrypt y nunca se devuelve.
+      operationId: iniciarSesion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+            example:
+              nickName: laura
+              password: "123456"
+      responses:
+        "200":
+          description: Credenciales correctas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserMensaje"
+              example:
+                message: Sesión iniciada con éxito
+                usuario:
+                  id: 2
+                  nickName: laura
+                  createdAt: "2026-10-16T05:19:44.118Z"
+        "400":
+          $ref: "#/components/responses/DatosInvalidos"
+        "401":
+          description: Usuario o contraseña incorrectos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                message: Usuario o contraseña incorrectos
         "500":
           $ref: "#/components/responses/ErrorInterno"
 
@@ -142,7 +184,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UserInput"
+              $ref: "#/components/schemas/UserUpdateInput"
             example:
               nickName: pepe2
       responses:
@@ -292,7 +334,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Mensaje"
               example:
-                message: silvina ahora sigue a carla
+                message: silvina ahora sigue a marilin
         "400":
           description: Algún id es inválido o el usuario intenta seguirse a sí mismo
           content:
@@ -345,7 +387,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Mensaje"
               example:
-                message: silvina dejó de seguir a carla
+                message: silvina dejó de seguir a marilin
         "400":
           $ref: "#/components/responses/IdInvalido"
         "404":
@@ -1243,7 +1285,7 @@ components:
     UserInput:
       type: object
       additionalProperties: false
-      required: [nickName]
+      required: [nickName, password]
       properties:
         nickName:
           type: string
@@ -1252,6 +1294,34 @@ components:
           pattern: "^[a-zA-Z0-9._-]+$"
           description: Único. Solo letras, números, puntos, guiones y guiones bajos.
           example: pepe
+        password:
+          type: string
+          minLength: 6
+          maxLength: 50
+          description: BONUS. Se guarda encriptada; al modificar el usuario (PUT) solo se envía el nickName.
+          example: miclave123
+    UserUpdateInput:
+      type: object
+      additionalProperties: false
+      required: [nickName]
+      properties:
+        nickName:
+          type: string
+          minLength: 3
+          maxLength: 30
+          pattern: "^[a-zA-Z0-9._-]+$"
+          example: pepe_v2
+    LoginInput:
+      type: object
+      additionalProperties: false
+      required: [nickName, password]
+      properties:
+        nickName:
+          type: string
+          example: laura
+        password:
+          type: string
+          example: "123456"
     UserResumen:
       type: object
       properties:
@@ -1260,7 +1330,7 @@ components:
           example: 1
         nickName:
           type: string
-          example: carla
+          example: marilin
     User:
       type: object
       properties:
@@ -1269,7 +1339,7 @@ components:
           example: 1
         nickName:
           type: string
-          example: carla
+          example: marilin
         createdAt:
           type: string
           format: date-time

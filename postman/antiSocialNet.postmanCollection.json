@@ -101,7 +101,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nickName\": \"{{nickName}}\"\n}",
+              "raw": "{\n  \"nickName\": \"{{nickName}}\",\n  \"password\": \"123456\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -143,7 +143,50 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nickName\": \"otro_{{$timestamp}}\"\n}",
+              "raw": "{\n  \"nickName\": \"otro_{{$timestamp}}\",\n  \"password\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login con contraseña correcta (BONUS)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Devuelve el usuario sin la contraseña\", () => { const j = pm.response.json(); pm.expect(j.usuario.nickName).to.eql(pm.collectionVariables.get(\"nickName\")); pm.expect(j.usuario).to.not.have.property(\"password\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nickName\": \"{{nickName}}\",\n  \"password\": \"123456\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -515,7 +558,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nickName\": \"{{nickName}}\"\n}",
+                  "raw": "{\n  \"nickName\": \"{{nickName}}\",\n  \"password\": \"123456\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -558,7 +601,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"nickName\": \"carla\"\n}",
+                  "raw": "{\n  \"nickName\": \"marilin\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -662,6 +705,90 @@
                   "path": [
                     "no-existe"
                   ]
+                }
+              }
+            },
+            {
+              "name": "401 - Login con contraseña incorrecta (BONUS)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 401\", () => pm.response.to.have.status(401));",
+                      "pm.test(\"Mensaje de error\", () => pm.expect(pm.response.json().message).to.eql(\"Usuario o contraseña incorrectos\"));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users/login",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users",
+                    "login"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nickName\": \"{{nickName}}\",\n  \"password\": \"otra-clave\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "name": "400 - Crear usuario sin contraseña (BONUS)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/users",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nickName\": \"sin_clave_123\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
               }
             }

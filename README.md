@@ -232,3 +232,66 @@ src/
 ```
 
 El modelo de datos está en [docs/DER.md](./docs/DER.md).
+
+## Cambios para el TP2 de Construcción de Interfaces de Usuario
+
+Este repositorio es una copia del BackEnd de **Red Anti-Social**, la API que desarrollamos para **Estrategias de Persistencia**. Lo usamos como BackEnd propio del TP2 de **Construcción de Interfaces de Usuario** (UNAHUR), cuyo FrontEnd (React + TypeScript) vive en otro repositorio.
+
+Para no modificar la entrega original, se creó este repo nuevo y los cambios del TP2 quedaron en commits separados. Las demás rutas de la API se usan tal como estaban.
+
+### 1. Origen del código
+
+El código base es el de la entrega de Estrategias de Persistencia, importado sin cambios en el primer commit de este repo.
+
+- Repositorio original: `<link al repo original de Estrategias>`
+
+### 2. CORS
+
+El navegador bloquea los pedidos de una página (`http://localhost:5173`) a otro origen (`http://localhost:3000`) si el servidor no lo autoriza. Para permitir que el FrontEnd consuma la API se instaló el paquete `cors` y se lo configuró en `src/main.js`:
+
+```js
+const cors = require("cors");
+app.use(cors({ origin: ["http://localhost:5173", "http://localhost:4173"] }));
+```
+
+- `5173` es el puerto de `npm run dev` del FrontEnd.
+- `4173` es el puerto de `npm run preview`.
+
+### 3. Bonus: contraseña propia y login validado por el BackEnd
+
+Cada usuario elige su contraseña al registrarse, y el BackEnd valida las credenciales al iniciar sesión.
+
+**Qué se agregó**
+
+- **Columna `password`** en la tabla `Users`, mediante la migración `20261105120000-add-password-to-user.js`. Los usuarios que ya existían quedan con la contraseña `123456`.
+- **Encriptación con `bcryptjs`:** en la base se guarda el hash, nunca el texto real.
+- **`defaultScope` en el modelo `User`:** excluye `password` de todas las consultas, así ninguna ruta la devuelve por error. Solo el login usa `User.scope("conPassword")`.
+- **`POST /users`** ahora requiere `nickName` y `password` (mínimo 6 caracteres).
+- **`POST /users/login`** (nuevo): compara la contraseña con `bcrypt.compare`.
+  - `200`: credenciales correctas, devuelve el usuario sin la contraseña.
+  - `400`: datos inválidos.
+  - `401`: "Usuario o contraseña incorrectos". El mensaje es el mismo si el nickName no existe, para no dar pistas de qué usuarios hay.
+- **Seeders:** los usuarios de prueba son las cuatro integrantes del grupo (`laura`, `marilin`, `mili` y `silvina`), todos con la contraseña `123456`.
+- **Documentación y pruebas:** Swagger (`/docs`) y la colección de Postman incluyen el login y los casos nuevos.
+
+**Cómo actualizar una base existente**
+
+```bash
+git pull
+npm install
+npm run db:migrate
+npm run db:seed:undo
+npm run db:seed
+npm run dev
+```
+
+> Ojo: `db:seed:undo` borra los datos de prueba, incluido lo que se haya creado a mano en la base local.
+
+**Ejemplo de login**
+
+```http
+POST /users/login
+Content-Type: application/json
+
+{ "nickName": "laura", "password": "123456" }
+```
