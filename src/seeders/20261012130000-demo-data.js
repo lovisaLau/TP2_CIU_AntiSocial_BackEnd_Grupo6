@@ -1,4 +1,5 @@
 "use strict";
+const bcrypt = require("bcryptjs");
 
 const haceMeses = (meses) => {
   const fecha = new Date();
@@ -11,12 +12,13 @@ module.exports = {
   async up(queryInterface) {
     const ahora = new Date();
     const fechas = { createdAt: ahora, updatedAt: ahora };
+    const password = await bcrypt.hash("123456", 10);
 
     await queryInterface.bulkInsert("Users", [
-      { id: 1, nickName: "carla", ...fechas },
-      { id: 2, nickName: "laura", ...fechas },
-      { id: 3, nickName: "mili", ...fechas },
-      { id: 4, nickName: "silvina", ...fechas },
+      { id: 1, nickName: "marilin", password, ...fechas },
+      { id: 2, nickName: "laura", password, ...fechas },
+      { id: 3, nickName: "mili", password, ...fechas },
+      { id: 4, nickName: "silvina", password, ...fechas },
     ]);
 
     await queryInterface.bulkInsert("Posts", [
