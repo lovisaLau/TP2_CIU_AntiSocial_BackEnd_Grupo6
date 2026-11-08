@@ -4,7 +4,7 @@ const userController = require("../controllers/usersControllers");
 const validarId = require("../middlewares/validarId");
 const validarSchema = require("../middlewares/validarSchema");
 const buscarUsuarioPorId = require("../middlewares/buscarUsuarioPorId");
-const { userSchema } = require("../schemas/userSchemas");
+const { userSchema, crearUsuarioSchema, loginSchema } = require("../schemas/userSchemas");
 
 router.get("/", userController.obtenerUsuarios);
 router.get(
@@ -13,7 +13,8 @@ router.get(
   buscarUsuarioPorId,
   userController.obtenerUsuario,
 );
-router.post("/", validarSchema(userSchema), userController.crearUsuario);
+router.post("/", validarSchema(crearUsuarioSchema), userController.crearUsuario);
+router.post("/login", validarSchema(loginSchema), userController.iniciarSesion);
 router.put(
   "/:id",
   validarId,

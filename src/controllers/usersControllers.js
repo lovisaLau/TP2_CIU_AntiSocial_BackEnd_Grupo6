@@ -1,3 +1,4 @@
+const bcrypt = require("bcryptjs");
 const { User, Post } = require("../models");
 
 const obtenerUsuarios = async (req, res) => {
@@ -31,24 +32,60 @@ const obtenerUsuario = async (req, res) => {
 
 const crearUsuario = async (req, res) => {
   try {
-    const { nickName } = req.body;
+    const { nickName, password } = req.body;
 
     const existente = await User.findOne({ where: { nickName } });
     if (existente) {
       return res.status(409).json({ message: "El nickName ya está en uso" });
     }
 
-    const usuario = await User.create({ nickName });
+    // BONUS: la contraseña se guarda encriptada, nunca como texto plano
+    const hash = await bcrypt.hash(password, 10);
+    const usuario = await User.create({ nickName, password: hash });
 
     res.status(201).json({
       message: "Usuario creado con exito",
-      usuario,
+      usuario: {
+        id: usuario.id,
+        nickName: usuario.nickName,
+        createdAt: usuario.createdAt,
+      },
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error al crear el usuario" });
   }
 };
+
+// BONUS contraseña propia
+const iniciarSesion = async (req, res) => {
+  try {
+    const { nickName, password } = req.body;
+
+    const usuario = await User.scope("conPassword").findOne({ where: { nickName } });
+
+    const passwordOk = usuario && usuario.password
+      ? await bcrypt.compare(password, usuario.password)
+      : false;
+
+    if (!passwordOk) {
+      return res.status(401).json({ message: "Usuario o contraseña incorrectos" });
+    }
+
+    res.status(200).json({
+      message: "Sesión iniciada con éxito",
+      usuario: {
+        id: usuario.id,
+        nickName: usuario.nickName,
+        createdAt: usuario.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error al iniciar sesión" });
+  }
+};
+
 
 const actualizarUsuario = async (req, res) => {
   try {
@@ -183,6 +220,7 @@ module.exports = {
   obtenerUsuarios,
   obtenerUsuario,
   crearUsuario,
+  iniciarSesion,
   actualizarUsuario,
   eliminarUsuario,
   obtenerSeguidores,
