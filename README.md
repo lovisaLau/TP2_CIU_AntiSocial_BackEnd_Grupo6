@@ -58,7 +58,7 @@ Los bonus **tampoco se ven en clase**. Requieren investigar por su cuenta más a
 
 ## Requisitos
 
-- [Node.js](https://nodejs.org/) 18 o superior (incluye npm).
+- [Node.js](https://nodejs.org/) 20.19 o superior (incluye npm). Es la misma versión que pide el FrontEnd (Vite 8).
 - Git.
 
 ## Pasos
@@ -66,8 +66,7 @@ Los bonus **tampoco se ven en clase**. Requieren investigar por su cuenta más a
 1. Clonar el repositorio (o, si ya se clonó antes, actualizarlo con `git pull`):
 
    ```bash
-   git clone https://gitea.unahur.edu.ar/Estrategia-de-persistencia-C2-2026/ejercicio-48-grupo-19.git
-   cd ejercicio-48-grupo-19
+   git clone https://github.com/lovisaLau/TP2_CIU_AntiSocial_BackEnd_Grupo6.git cd TP2_CIU_AntiSocial_BackEnd_Grupo6
    ```
 
 2. Instalar las dependencias:
@@ -243,7 +242,7 @@ Para no modificar la entrega original, se creó este repo nuevo y los cambios de
 
 El código base es el de la entrega de Estrategias de Persistencia, importado sin cambios en el primer commit de este repo.
 
-- Repositorio original: `<link al repo original de Estrategias>`
+- Repositorio original: https://gitea.unahur.edu.ar/Estrategia-de-persistencia-C2-2026/trabajo-practico-2-grupo-1 
 
 ### 2. CORS
 
