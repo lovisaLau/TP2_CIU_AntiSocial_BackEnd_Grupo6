@@ -421,6 +421,15 @@ paths:
         Cada post incluye su autor, imágenes, tags y comentarios.
         Solo se devuelven los comentarios **visibles** (más nuevos que `COMMENT_MAX_MONTHS` meses).
       operationId: getPosts
+      parameters:
+        - name: userId
+          in: query
+          required: false
+          description: Si se envía, devuelve solo las publicaciones de ese usuario.
+          schema:
+            type: integer
+            minimum: 1
+            example: 2
       responses:
         "200":
           description: Lista de posts
@@ -430,6 +439,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/PostCompleto"
+        "400":
+          $ref: "#/components/responses/IdInvalido"
         "500":
           $ref: "#/components/responses/ErrorInterno"
     post:

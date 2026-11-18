@@ -2,7 +2,14 @@ const { sequelize, Post, Post_Images, Comment, User, Tag } = require('../models'
 
 exports.getPosts = async (req, res, next) => {
   try {
+    // ?userId=2 → solo los posts de ese usuario (lo usa el Perfil del FrontEnd)
+    const { userId } = req.query;
+    if (userId !== undefined && (!Number.isInteger(Number(userId)) || Number(userId) <= 0)) {
+      return res.status(400).json({ message: 'El parámetro userId debe ser un entero positivo.' });
+    }
+    const where = userId !== undefined ? { userId: Number(userId) } : {};
     const posts = await Post.findAll({
+      where,
       include: [
         // Coincide con as: "user" de Post.js
         { model: User, as: 'user', attributes: ['id', 'nickName'] },
