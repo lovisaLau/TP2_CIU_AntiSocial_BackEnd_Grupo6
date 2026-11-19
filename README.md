@@ -66,7 +66,8 @@ Los bonus **tampoco se ven en clase**. Requieren investigar por su cuenta más a
 1. Clonar el repositorio (o, si ya se clonó antes, actualizarlo con `git pull`):
 
    ```bash
-   git clone https://github.com/lovisaLau/TP2_CIU_AntiSocial_BackEnd_Grupo6.git cd TP2_CIU_AntiSocial_BackEnd_Grupo6
+      git clone https://github.com/lovisaLau/TP2_CIU_AntiSocial_BackEnd_Grupo6.git
+      cd TP2_CIU_AntiSocial_BackEnd_Grupo6
    ```
 
 2. Instalar las dependencias:
