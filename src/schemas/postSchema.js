@@ -11,15 +11,16 @@ const createPostSchema = Joi.object({
     'number.positive': "El userId debe ser un entero positivo",
     'any.required': 'El userId es obligatorio'
   }),
-  images: Joi.array().items(Joi.string().uri()).optional(),
+  images: Joi.array().items(Joi.string().uri({ scheme: ['http', 'https'] })).optional(),
   tags: Joi.array().items(Joi.number().integer().positive()).optional()
 }).messages({
   'object.unknown': 'El campo {#label} no está permitido'
 });
 
 const addImageSchema = Joi.object({
-  url: Joi.string().uri().required().messages({
+  url: Joi.string().uri({ scheme: ['http', 'https'] }).required().messages({
     'string.uri': 'La URL debe ser un enlace válido',
+    'string.uriCustomScheme': 'La URL debe ser un enlace válido',
     'any.required': 'La URL de la imagen es obligatoria'
   })
 }).messages({
